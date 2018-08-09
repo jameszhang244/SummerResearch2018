@@ -24,23 +24,21 @@ class NetworkEnv(gym.Env):
     }
 
     def __init__(self):
+        #max_rate is the amount in gigabytes of info you're sending out.
         self.max_rate = 0
         self.max_link_rate = 10 * 1024 * 1024 * 1024 / 8  # 10 Gigabits - all rates are in B/s
-        self.max_network_rate = self.max_link_rate * 4 # Simulates rate for 4 links
-        self.base_rate_min = 0
-        self.base_rate_max = self.max_network_rate * 0.9
-        self.handshake_duration = 1  # seconds
-        self.max_rate_per_file = 5 * 1024 * 1024  # B/s
-        self.file_size_mean = 1350 * 1024 * 1024
-        self.file_size_sigma = 300 * 1024 * 1024
-
+        
+        self.max_read_rate = self.max_link_rate * 4 * 2 / 3 # Simulates rate for 4 links
+        
         #  key: int, start: int, stop:int,  size: int [bytes], transfered: int[bytes]
         self.network_transfers = deque(maxlen=4)
         self.network_transfers.append(deque(maxlen=2000))
         self.network_transfers.append(deque(maxlen=2000))
         self.network_transfers.append(deque(maxlen=2000))
         self.network_transfers.append(deque(maxlen=2000))
-        self.current_base_rate = int(self.max_network_rate * 0.5 * np.random.ranf())
+        
+        self.current_base_rate = int(self.max_read_rate * 0.5 * np.random.ranf())
+        
         self.tstep = 0
         self.viewer = None
         self.h_base = deque(maxlen=600)
@@ -50,20 +48,34 @@ class NetworkEnv(gym.Env):
         self.links.append(LinkEnv())
         self.links.append(LinkEnv())
         self.links.append(LinkEnv())
-        self.dc_free = 0
-        self.dc_used = 0
         self.seed()
-
+        
+        """
+        low = np.array([
+                self.links[0].step[0], 
+                self.links[1].step[0], 
+                self.links[2].step[0], 
+                self.links[3].step[0], 
+                0.5])
+        
+        high = low
+        """
+        
         # obesrvation space reports only on files transfered: rate and how many steps ago it started.
         self.observation_space = spaces.Box(
             # low=np.array([0.0, 0, 0]),
             # high=np.array([np.finfo(np.float32).max, np.iinfo(np.int32).max, np.iinfo(np.int32).max])
-            low=np.array([0.0]),
-            high=np.array([1.5])
+
+            low=0.0,
+            high=1.5,
+            shape=(1,5)
+            # 4 observations for the throughput on each link and the fifth being if these throughputs exceed the read rate.
             #0 to 1.5 are the percentage threshold. occupency
         )
-        self.action_space = spaces.Discrete(4*4) #4 * Number of links
-
+        self.action_space = spaces.Tuple([spaces.Discrete(4), spaces.Discrete(4), spaces.Discrete(4), spaces.Discrete(4)])
+        #self.action_space = spaces.MultiDiscrete([4, 4, 4, 4])
+        #self.action_space = spaces.Discrete(16)
+        
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
@@ -83,53 +95,91 @@ class NetworkEnv(gym.Env):
         #else:
         #    return -2*x + 2
         
-    def distribute(self, action):
-        i = action / 4
-        j = action % 4
-        x = [i, i, i, i]
-        for k in range(j):
-            x[k] += 1
-        return x
+    def round_int(self, x):
+        return int(round(x))       
     
     def get_max_rate(self):
-        maxr = 0
-        for i in range(4):
-            maxr = self.max_rate + maxr
+        max0 = self.links[0].max_rate
+        print("This is the max0 rate ", max0)
+        max1 = self.links[1].max_rate
+        print("This is the max1 rate ", max1)
+        max2 = self.links[2].max_rate
+        print("This is the max2 rate ", max2)
+        max3 = self.links[3].max_rate
+        print("This is the max3 rate ", max3)
+        maxr = max0 + max1 + max2 + max3
         return maxr
+      
     
     def get_current_base_rate(self):
-        baser = 0
-        for i in range(4):
-            baser = self.current_base_rate + baser
-        return baser
+        cbr0 = self.links[0].current_base_rate
+        print("This is the current max0 base rate ", cbr0)
+        cbr1 = self.links[1].current_base_rate
+        print("This is the current max1 base rate ", cbr1)
+        cbr2 = self.links[2].current_base_rate
+        print("This is the current max2 base rate ", cbr2)
+        cbr3 = self.links[3].current_base_rate
+        print("This is the current max3 base rate ", cbr3)
+        cbr = cbr0 + cbr1 + cbr2 + cbr3
+        return cbr
 
     def step(self, action):
 
+        #print("This is action ", action)
+        
+        self.max_rate = self.get_max_rate()
+        #print("This is the max_rate ", self.max_rate)
+        #print("This is the link ", self.links)
+        
+        self.current_base_rate = self.get_current_base_rate()
+        #print("This is the current_base_rate ", self.current_base_rate)
+        
+        self.max_free_network_bandwidth = self.max_read_rate - self.current_base_rate
+        #print("This is the max_free_network_bandwidth ", self.max_free_network_bandwidth)
+        
+        self.h_base.append(self.current_base_rate)
+        #print("This is the h_base ", self.h_base)
+        
+        self.h_added.append(self.max_rate + self.current_base_rate)
+        #print("This is the h_added ", self.h_added)
+
         # add transfers if asked for
-        l = self.distribute(action)
+        l = np.array(action)
+        print("This is l ok ", l)
+        list1 = enumerate(l)
+        print("This is list1 ", list(list1))
+
         step_results = []
-        for idx, act in enumerate(l):
+        obs = 0.0
+        #rew = 0.0
+        rew = self.reward_function(self.max_rate / self.max_free_network_bandwidth)
+        #print("reward prlim is ", rew)
+        
+        for idx, act in list1:
             o, r, e, _ = self.links[idx].step(act)
             step_results.append([o, r, e])
+            obs += o
+            rew += r
+            #print("OK SO THIS IS rew each time: ", rew)
+        #print("reward after is ", rew)
             
-        obs = 0.0
-        rew = 0.0
+        #obs = 0.0
+        #rew = 0.0
         epi_over = True
         for i in step_results:
-            obs += i[0]
-            rew += i[1]
+            #obs += i[0]
+            #rew += i[1]
             epi_over = epi_over and i[2]
-            
-        self.max_rate = self.get_max_rate()
-        self.current_base_rate = self.get_current_base_rate()
-        self.h_base.append(self.current_base_rate)
-        self.h_added.append(self.max_rate + self.current_base_rate)
-        
-        observation = obs / 4
-        reward = rew / 4
+      
+        observation = obs
+        reward = rew/5.0
+        #print("THE reward is ", reward)
         episode_over = epi_over
         
         self.tstep += 1
+        
+        # TO DO:
+        observation = np.array([0.6, 0.6, 0.6, 0.6])
        
         return observation, reward, episode_over, {
             "finished network transfers": True
@@ -137,10 +187,14 @@ class NetworkEnv(gym.Env):
 
     def reset(self):
         self.tstep = 0
-        self.dc_free = 0
-        self.dc_used = 0
-        return np.array((0.5))
-        # return np.array((0, 0, 0))
+        s = self.links[0].reset()
+        for i in range(1, 4):
+            a = self.links[i].reset()
+            s = np.concatenate((s, a), axis=0)
+        print("network reset: s = ", s)
+        return s
+        #return np.array([0.5, 0.5, 0.5, 0.5])
+        
 
     def render(self, mode='human', close=False):
         if close:
@@ -197,7 +251,7 @@ class NetworkEnv(gym.Env):
         base.set_color(.8, .6, .4)
         self.viewer.add_onetime(base)
 
-        max_line = self.max_link_rate / scale
+        max_line = self.max_read_rate / scale
         ml = rendering.Line((20, max_line + 20), (screen_width - 20, max_line + 20))
         ml.set_color(0.1, 0.9, .1)
         self.viewer.add_onetime(ml)

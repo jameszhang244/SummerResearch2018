@@ -26,9 +26,10 @@ class NetworkSolver():
         self.n_episodes = n_episodes
         self.batch_size = batch_size
 
+        #remember, this may have to be different for network.
         # Init model
         self.model = Sequential()
-        self.model.add(Dense(8, input_dim=1, activation='relu'))
+        self.model.add(Dense(8, input_dim=4, activation='relu'))
         # self.model.add(Dense(24, activation='relu'))  # 48 tanh
         self.model.add(Dense(4, activation='linear'))
         self.model.compile(loss='mse', optimizer=Adam())  # lr=self.lr, decay=self.lr_decay))
@@ -61,7 +62,8 @@ class NetworkSolver():
 
     def choose_action(self, state, epsilon):
         """ """
-        return self.env.action_space.sample() if (np.random.random() <= epsilon) else np.argmax(self.model.predict(state))
+        # return self.env.action_space.sample() if (np.random.random() <= epsilon) else np.argmax(self.model.predict(state))
+        return self.env.action_space.sample() if (np.random.random() <= epsilon) else self.model.predict(state)
 
     def get_epsilon(self, e):
         """  epsilon will depend on the episode.
@@ -77,7 +79,8 @@ class NetworkSolver():
         return max(self.epsilon_min, min(self.epsilon, 1.0 - math.log10((e + 1) * self.epsilon_decay)))
 
     def preprocess_state(self, state):
-        return np.reshape(state, [1, 1])
+        print("This is the state: ", state)
+        return np.reshape(state, (1, 4))
         # return np.reshape(state, [1, 3])
 
     def replay(self, batch_size):
@@ -95,15 +98,19 @@ class NetworkSolver():
             for state, action, reward, next_state, done in minibatch:
                 y_target = self.model.predict(state)
                 if done:
-                    y_target[0][action] = reward
+                    # y_target[0][action] = reward
+                    print("action[0] = ", action[0])
+                    y_target[0] = reward # TO DO: index 0 is not correct
                 else:
-                    y_target[0][action] = reward + self.gamma * np.max(self.model.predict(next_state)[0])
+                    # y_target[0][action] = reward + self.gamma * np.max(self.model.predict(next_state)[0])
+                    y_target[0] = reward + self.gamma * self.model.predict(next_state)[0]
                     #Multiplying by gamma accounts for discount ratio
                 x_batch.append(state[0])
                 y_batch.append(y_target[0])
 
             hist = self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), epochs=100, verbose=0)
-            # print(hist.history['loss'])
+            #print("This is loss: ", hist.history['loss'])
+            #print("This is hist ", hist)
         # print('.')
 
     def run(self):
@@ -118,7 +125,7 @@ class NetworkSolver():
                 next_state, reward, done, info = self.env.step(action)
                 if e % 50 == 0:
                     self.env.render()
-                    print(action, 'state:{: 2.5f}   rew:{: 2.5f}'.format(next_state, reward))
+                    print(action, 'state:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}   rew:{: 2.5f}'.format(next_state[0], next_state[1], next_state[2], next_state[3], reward))
                 next_state = self.preprocess_state(next_state)
                 self.remember(state, action, reward, next_state, done)
                 state = next_state
