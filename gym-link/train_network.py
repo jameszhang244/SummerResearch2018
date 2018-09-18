@@ -44,7 +44,7 @@ class NetworkSolver():
     def show(self):
         """ shows training related variables for each episode """
         df = pd.DataFrame(list(self.success))
-        # print(df.describe())
+        print(df.head())
 
         plt.subplot(211)
         plt.plot(df[1])
@@ -52,7 +52,9 @@ class NetworkSolver():
         plt.title('duration')
 
         plt.subplot(212)
-        plt.plot(df[2])
+        for i in range(2, 6):
+            plt.plot(df[i])
+        #plt.plot(df[2])
         plt.title('reward')
 
         plt.pause(0.001)
@@ -66,7 +68,7 @@ class NetworkSolver():
         target_arrays = [prediction[i*4 : (i*4)+4] for i in range(4)]
         max_array1 = []
         for a in target_arrays:
-            max_array1.append(np.max(a))
+            max_array1.append(np.argmax(a))
         return max_array1
 
     def choose_action(self, state, epsilon):
@@ -112,10 +114,12 @@ class NetworkSolver():
                 
                 y_target = self.model.predict(state)
                 
-                target_arrays = [y_target[0][i*4, (i*4)+4] for i in range(4)]
+                target_arrays = [y_target[0][i*4 : (i*4)+4] for i in range(4)]
                 max_array = []
                 for a in target_arrays:
                     max_array.append(np.max(a))
+                    
+                print("------------ACTION2 = ", action)
                 
                 if done:
                     # y_target[0][action] = reward
@@ -163,7 +167,7 @@ class NetworkSolver():
                 # if steps % 200 == 0:
                 #    print('episode:', e, '\tsteps:', steps)
 
-            self.success.append([e, steps, tot_reward])
+            self.success.append([e, steps, tot_reward[0], tot_reward[1], tot_reward[2], tot_reward[3]])
             if e % 50 == 0:
                 self.show()
 
