@@ -85,24 +85,30 @@ class LinkSolver():
         One or more batches. Called once AFTER each episode.
         """
         nbatches = len(self.memory) // self.batch_size
-        nbatches = min(nbatches, 1)
+        nbatches = min(nbatches, 1) # This may not be right. Maybe should be max.
         for n in range(nbatches):
             # print('batch', n)
             # print('.', end='')
             x_batch, y_batch = [], []
             # x_batch = a list of observation values; y_batch = a list of np array of 4 rewards (corresponding to each potential action)
-            minibatch = random.sample(self.memory, min(len(self.memory), batch_size))
+            minibatch = random.sample(self.memory, min(len(self.memory), batch_size)) #Randomly takes 64 samples from memory
             for state, action, reward, next_state, done in minibatch:
                 y_target = self.model.predict(state)
+                print("This is the y_target before :", y_target)
                 if done:
                     y_target[0][action] = reward
+                    print("This is the y_target after (1) :", y_target)
+                    #I think this is where the reinforcement aspect comes in. It increases or decreases the probability of this action happening next time.
                 else:
                     y_target[0][action] = reward + self.gamma * np.max(self.model.predict(next_state)[0])
+                    print("This is the y_target after (2) :", y_target)
                     #Multiplying by gamma accounts for discount ratio
+                    #I think this is where the reinforcement aspect comes in. It increases or decreases the probability of this action happening next time.
                 x_batch.append(state[0])
                 y_batch.append(y_target[0])
 
             hist = self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), epochs=100, verbose=0)
+            # np.array(x_batch) = features, np.array(y_batch) = training data
             # print(hist.history['loss'])
         # print('.')
 
@@ -121,6 +127,7 @@ class LinkSolver():
                     print(action, 'state:{: 2.5f}   rew:{: 2.5f}'.format(next_state, reward))
                 next_state = self.preprocess_state(next_state)
                 self.remember(state, action, reward, next_state, done)
+                # Memory stores all the training data (i.e. the results of each game)
                 state = next_state
                 tot_reward += reward
                 steps += 1

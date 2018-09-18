@@ -68,7 +68,7 @@ class NetworkEnv(gym.Env):
 
             low=0.0,
             high=1.5,
-            shape=(1,5)
+            shape=(1,4)
             # 4 observations for the throughput on each link and the fifth being if these throughputs exceed the read rate.
             #0 to 1.5 are the percentage threshold. occupency
         )
@@ -146,25 +146,23 @@ class NetworkEnv(gym.Env):
         # add transfers if asked for
         l = np.array(action)
         print("This is l ok ", l)
-        list1 = enumerate(l)
-        print("This is list1 ", list(list1))
+        list1 = list(enumerate(l))
+        print("This is list1 ", list1)
 
         step_results = []
-        obs = 0.0
-        #rew = 0.0
-        rew = self.reward_function(self.max_rate / self.max_free_network_bandwidth)
+        obs = []
+        rew = []
+        #rew = self.reward_function(self.max_rate / self.max_free_network_bandwidth)
         #print("reward prlim is ", rew)
         
-        for idx, act in list1:
+        for (idx, act) in list1:
             o, r, e, _ = self.links[idx].step(act)
             step_results.append([o, r, e])
-            obs += o
-            rew += r
+            obs.append(o)
+            rew.append(r)
             #print("OK SO THIS IS rew each time: ", rew)
         #print("reward after is ", rew)
             
-        #obs = 0.0
-        #rew = 0.0
         epi_over = True
         for i in step_results:
             #obs += i[0]
@@ -172,14 +170,14 @@ class NetworkEnv(gym.Env):
             epi_over = epi_over and i[2]
       
         observation = obs
-        reward = rew/5.0
+        reward = rew
         #print("THE reward is ", reward)
         episode_over = epi_over
         
         self.tstep += 1
         
         # TO DO:
-        observation = np.array([0.6, 0.6, 0.6, 0.6])
+        #observation = np.array([0.6, 0.6, 0.6, 0.6])
        
         return observation, reward, episode_over, {
             "finished network transfers": True

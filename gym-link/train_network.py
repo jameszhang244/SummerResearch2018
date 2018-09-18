@@ -30,9 +30,11 @@ class NetworkSolver():
         # Init model
         self.model = Sequential()
         self.model.add(Dense(8, input_dim=4, activation='relu'))
+        #self.model.add adds a layer to the neural network. Only the first self.model.add takes a input_dim
         # self.model.add(Dense(24, activation='relu'))  # 48 tanh
-        self.model.add(Dense(4, activation='linear'))
+        self.model.add(Dense(16, activation='linear'))
         self.model.compile(loss='mse', optimizer=Adam())  # lr=self.lr, decay=self.lr_decay))
+        # try different loss and optimizers and models
 
         # results
         self.success = deque(maxlen=n_episodes)  # will contain [ep_number, duration, tot_reward]
@@ -59,11 +61,18 @@ class NetworkSolver():
     def remember(self, state, action, reward, next_state, done):
         """ just adds to memory deque """
         self.memory.append((state, action, reward, next_state, done))
+        
+    def max_array(self, prediction):
+        target_arrays = [prediction[i*4 : (i*4)+4] for i in range(4)]
+        max_array1 = []
+        for a in target_arrays:
+            max_array1.append(np.max(a))
+        return max_array1
 
     def choose_action(self, state, epsilon):
         """ """
         # return self.env.action_space.sample() if (np.random.random() <= epsilon) else np.argmax(self.model.predict(state))
-        return self.env.action_space.sample() if (np.random.random() <= epsilon) else self.model.predict(state)
+        return self.env.action_space.sample() if (np.random.random() <= epsilon) else self.max_array(self.model.predict(state)[0])
 
     def get_epsilon(self, e):
         """  epsilon will depend on the episode.
@@ -96,14 +105,29 @@ class NetworkSolver():
             # x_batch = a list of observation values; y_batch = a list of np array of 4 rewards (corresponding to each potential action)
             minibatch = random.sample(self.memory, min(len(self.memory), batch_size))
             for state, action, reward, next_state, done in minibatch:
+                
+                # y_target = [[v0, v1, ..., v15]], y_target[0] = [v0, v1, ..., v15]
+                # state is something like : [[ 1.33765948  1.44549417  0.57516229  1.1875875 ]], 
+                # state[0] = [ 1.33765948  1.44549417  0.57516229  1.1875875 ]
+                
                 y_target = self.model.predict(state)
+                
+                target_arrays = [y_target[0][i*4, (i*4)+4] for i in range(4)]
+                max_array = []
+                for a in target_arrays:
+                    max_array.append(np.max(a))
+                
                 if done:
                     # y_target[0][action] = reward
                     print("action[0] = ", action[0])
-                    y_target[0] = reward # TO DO: index 0 is not correct
+                    for i in range(4):
+                        y_target[0][i*4 + action[i]] = reward[i]
                 else:
+                    for i in range(4):
+                        y_target[0][i*4 + action[i]] = reward[i] + self.gamma * max_array[i]
+                        
                     # y_target[0][action] = reward + self.gamma * np.max(self.model.predict(next_state)[0])
-                    y_target[0] = reward + self.gamma * self.model.predict(next_state)[0]
+                    # y_target[0] = reward + self.gamma * self.model.predict(next_state)[0]
                     #Multiplying by gamma accounts for discount ratio
                 x_batch.append(state[0])
                 y_batch.append(y_target[0])
@@ -117,19 +141,24 @@ class NetworkSolver():
         for e in range(self.n_episodes):
             state = self.preprocess_state(self.env.reset())
             done = False
-            tot_reward = 0
+            tot_reward = [0.0, 0.0, 0.0, 0.0]
             steps = 0
             info = None
             while not done:
                 action = self.choose_action(state, self.get_epsilon(e))
+                print("action = ", action)
                 next_state, reward, done, info = self.env.step(action)
+           
                 if e % 50 == 0:
                     self.env.render()
-                    print(action, 'state:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}   rew:{: 2.5f}'.format(next_state[0], next_state[1], next_state[2], next_state[3], reward))
+                    print("next_state length: ", len(next_state))
+                    print("reward length: ", len(reward))
+                    print(action, 'state:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}   rew:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}'.format(next_state[0], next_state[1], next_state[2], next_state[3], reward[0], reward[1], reward[2], reward[3]))
                 next_state = self.preprocess_state(next_state)
                 self.remember(state, action, reward, next_state, done)
                 state = next_state
-                tot_reward += reward
+                for i in range(4):
+                    tot_reward[i] += reward[i]
                 steps += 1
                 # if steps % 200 == 0:
                 #    print('episode:', e, '\tsteps:', steps)
@@ -138,7 +167,7 @@ class NetworkSolver():
             if e % 50 == 0:
                 self.show()
 
-            print('episode:{:4d}  duration:{:7d}    reward:{: 9.2f}'.format(e, steps, tot_reward), info)
+            print('episode:{:4d}  duration:{:7d}    reward:{: 9.2f}, {: 9.2f}, {: 9.2f}, {: 9.2f}'.format(e, steps, tot_reward[0], tot_reward[1], tot_reward[2], tot_reward[3]), info)
 
             self.replay(self.batch_size)
         return
