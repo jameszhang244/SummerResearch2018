@@ -46,16 +46,26 @@ class NetworkSolver():
         df = pd.DataFrame(list(self.success))
         print(df.head())
 
-        plt.subplot(211)
+        plt.subplot(511)
         plt.plot(df[1])
         plt.yscale('log')
         plt.title('duration')
 
-        plt.subplot(212)
-        for i in range(2, 6):
-            plt.plot(df[i])
-        #plt.plot(df[2])
-        plt.title('reward')
+        plt.subplot(512)
+        plt.plot(df[2])
+        plt.title('reward0')
+        
+        plt.subplot(513)
+        plt.plot(df[3])
+        plt.title('reward1')
+        
+        plt.subplot(514)
+        plt.plot(df[4])
+        plt.title('reward2')
+        
+        plt.subplot(515)
+        plt.plot(df[5])
+        plt.title('reward3')
 
         plt.pause(0.001)
         plt.show()
