@@ -100,26 +100,26 @@ class NetworkEnv(gym.Env):
     
     def get_max_rate(self):
         max0 = self.links[0].max_rate
-        print("This is the max0 rate ", max0)
+        #print("This is the max0 rate ", max0)
         max1 = self.links[1].max_rate
-        print("This is the max1 rate ", max1)
+        #print("This is the max1 rate ", max1)
         max2 = self.links[2].max_rate
-        print("This is the max2 rate ", max2)
+        #print("This is the max2 rate ", max2)
         max3 = self.links[3].max_rate
-        print("This is the max3 rate ", max3)
+        #print("This is the max3 rate ", max3)
         maxr = max0 + max1 + max2 + max3
         return maxr
       
     
     def get_current_base_rate(self):
         cbr0 = self.links[0].current_base_rate
-        print("This is the current max0 base rate ", cbr0)
+        #print("This is the current max0 base rate ", cbr0)
         cbr1 = self.links[1].current_base_rate
-        print("This is the current max1 base rate ", cbr1)
+        #print("This is the current max1 base rate ", cbr1)
         cbr2 = self.links[2].current_base_rate
-        print("This is the current max2 base rate ", cbr2)
+        #print("This is the current max2 base rate ", cbr2)
         cbr3 = self.links[3].current_base_rate
-        print("This is the current max3 base rate ", cbr3)
+        #print("This is the current max3 base rate ", cbr3)
         cbr = cbr0 + cbr1 + cbr2 + cbr3
         return cbr
 
@@ -145,9 +145,9 @@ class NetworkEnv(gym.Env):
 
         # add transfers if asked for
         l = np.array(action)
-        print("This is l ok ", l)
+        #print("This is l ok ", l)
         list1 = list(enumerate(l))
-        print("This is list1 ", list1)
+        #print("This is list1 ", list1)
 
         step_results = []
         obs = []
@@ -189,7 +189,7 @@ class NetworkEnv(gym.Env):
         for i in range(1, 4):
             a = self.links[i].reset()
             s = np.concatenate((s, a), axis=0)
-        print("network reset: s = ", s)
+        #print("network reset: s = ", s)
         return s
         #return np.array([0.5, 0.5, 0.5, 0.5])
         

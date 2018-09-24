@@ -130,7 +130,7 @@ class LinkEnv(gym.Env):
         self.dc_used += min(self.max_free_bandwidth, self.max_rate) / 1024
 
         reward = self.reward_function(self.max_rate / self.max_free_bandwidth)
-        print("reward is = ", reward)
+        #print("reward is = ", reward)
 
         episode_over = False
         if (self.max_rate + self.current_base_rate) > 1.1 * self.max_link_rate or self.tstep >= 1400:

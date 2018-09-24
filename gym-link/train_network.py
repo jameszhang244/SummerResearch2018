@@ -11,6 +11,7 @@ from collections import deque
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
+import statistics
 
 
 class NetworkSolver():
@@ -26,6 +27,7 @@ class NetworkSolver():
         self.n_episodes = n_episodes
         self.batch_size = batch_size
 
+        """
         #remember, this may have to be different for network.
         # Init model
         self.model = Sequential()
@@ -33,9 +35,20 @@ class NetworkSolver():
         #self.model.add adds a layer to the neural network. Only the first self.model.add takes a input_dim
         # self.model.add(Dense(24, activation='relu'))  # 48 tanh
         self.model.add(Dense(16, activation='linear'))
-        self.model.compile(loss='mse', optimizer=Adam())  # lr=self.lr, decay=self.lr_decay))
+        self.model.compile(loss='mse', optimizer=Adam(), metrics=['accuracy'])  # lr=self.lr, decay=self.lr_decay))
         # try different loss and optimizers and models
+        """
 
+        #remember, this may have to be different for network.
+        # Init model
+        self.model = Sequential()
+        self.model.add(Dense(16, input_dim=4, activation='relu'))
+        #self.model.add adds a layer to the neural network. Only the first self.model.add takes a input_dim
+        # self.model.add(Dense(24, activation='relu'))  # 48 tanh
+        self.model.add(Dense(16, activation='linear'))
+        self.model.compile(loss='mse', optimizer=Adam(), metrics=['accuracy'])  # lr=self.lr, decay=self.lr_decay))
+        # try different loss and optimizers and models
+        
         # results
         self.success = deque(maxlen=n_episodes)  # will contain [ep_number, duration, tot_reward]
         plt.ion()
@@ -100,7 +113,7 @@ class NetworkSolver():
         return max(self.epsilon_min, min(self.epsilon, 1.0 - math.log10((e + 1) * self.epsilon_decay)))
 
     def preprocess_state(self, state):
-        print("This is the state: ", state)
+        #print("This is the state: ", state)
         return np.reshape(state, (1, 4))
         # return np.reshape(state, [1, 3])
 
@@ -129,11 +142,11 @@ class NetworkSolver():
                 for a in target_arrays:
                     max_array.append(np.max(a))
                     
-                print("------------ACTION2 = ", action)
+                #print("------------ACTION2 = ", action)
                 
                 if done:
                     # y_target[0][action] = reward
-                    print("action[0] = ", action[0])
+                    #print("action[0] = ", action[0])
                     for i in range(4):
                         y_target[0][i*4 + action[i]] = reward[i]
                 else:
@@ -147,41 +160,67 @@ class NetworkSolver():
                 y_batch.append(y_target[0])
 
             hist = self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), epochs=100, verbose=0)
+            #scores = self.model.evaluate(np.array(x_batch), np.array(y_batch), verbose=0)
+            #print("------------- {0:s}: {1:.2f} --------------".format(self.model.metrics_names[1], scores[1]*100))
             #print("This is loss: ", hist.history['loss'])
             #print("This is hist ", hist)
         # print('.')
 
     def run(self):
+        total_rewards = [[], [], [], []]
         for e in range(self.n_episodes):
             state = self.preprocess_state(self.env.reset())
             done = False
             tot_reward = [0.0, 0.0, 0.0, 0.0]
+            #total_rewards = {}
             steps = 0
             info = None
             while not done:
                 action = self.choose_action(state, self.get_epsilon(e))
-                print("action = ", action)
+                #print("action = ", action)
                 next_state, reward, done, info = self.env.step(action)
            
                 if e % 50 == 0:
                     self.env.render()
-                    print("next_state length: ", len(next_state))
-                    print("reward length: ", len(reward))
-                    print(action, 'state:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}   rew:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}'.format(next_state[0], next_state[1], next_state[2], next_state[3], reward[0], reward[1], reward[2], reward[3]))
+                    #print("next_state length: ", len(next_state))
+                    #print("reward length: ", len(reward))
+                    #print(action, 'state:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}   rew:{: 2.5f}, {: 2.5f}, {: 2.5f}, {: 2.5f}'.format(next_state[0], next_state[1], next_state[2], next_state[3], reward[0], reward[1], reward[2], reward[3]))
                 next_state = self.preprocess_state(next_state)
                 self.remember(state, action, reward, next_state, done)
                 state = next_state
+                
                 for i in range(4):
                     tot_reward[i] += reward[i]
+                
+                for i in range(4):
+                    total_rewards[i].append(reward[i])
+                
+                #print("This is total_rewards: ", tot_reward)
+                """
+                for i in range(4):
+                    tot_reward[i] += reward[i]
+                    if i in total_rewards.keys:
+                        total_rewards[i].append(rewards[i])
+                    else:
+                        total_rewards[i] = [rewards[i]]
+                np.mean    
+                """
+                
                 steps += 1
                 # if steps % 200 == 0:
                 #    print('episode:', e, '\tsteps:', steps)
-
+            
+            print("############# Mean ############", 
+                  statistics.mean(total_rewards[0]), 
+                  statistics.mean(total_rewards[1]), 
+                  statistics.mean(total_rewards[2]), 
+                  statistics.mean(total_rewards[3]))
+            
             self.success.append([e, steps, tot_reward[0], tot_reward[1], tot_reward[2], tot_reward[3]])
             if e % 50 == 0:
                 self.show()
 
-            print('episode:{:4d}  duration:{:7d}    reward:{: 9.2f}, {: 9.2f}, {: 9.2f}, {: 9.2f}'.format(e, steps, tot_reward[0], tot_reward[1], tot_reward[2], tot_reward[3]), info)
+            #print('episode:{:4d}  duration:{:7d}    reward:{: 9.2f}, {: 9.2f}, {: 9.2f}, {: 9.2f}'.format(e, steps, tot_reward[0], tot_reward[1], tot_reward[2], tot_reward[3]), info)
 
             self.replay(self.batch_size)
         return
